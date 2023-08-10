@@ -145,6 +145,7 @@ if __name__ == '__main__':
                                 log_momentum=True),
         ],
         accelerator=config.DEVICE, devices=-1,
+        strategy="ddp",
         max_epochs = 40,
         enable_progress_bar = True,
         #overfit_batches = 10,
