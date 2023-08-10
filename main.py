@@ -139,7 +139,7 @@ checkpoint_callback = ModelCheckpoint(
 if __name__ == '__main__':
     trainer = Trainer(
         callbacks=[checkpoint_callback],
-        accelerator="mps", devices=1,
+        accelerator=config.DEVICE, devices=1,
         max_epochs = 40,
         enable_progress_bar = True,
         #overfit_batches = 10,
