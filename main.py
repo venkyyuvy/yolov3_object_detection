@@ -155,6 +155,6 @@ if __name__ == '__main__':
     # Train the model
     ckpt_fname = 'lightning_logs/model_ckpt/epoch=2-step=1500.ckpt'
     yolo_v3 = YoloV3()
-    yolo_v3.load_from_checkpoint(ckpt_fname, )
+    # yolo_v3.load_from_checkpoint(ckpt_fname, )
     trainer.fit(yolo_v3)
 
