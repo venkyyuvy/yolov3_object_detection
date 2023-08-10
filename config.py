@@ -23,7 +23,7 @@ S = [IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8]
 PIN_MEMORY = True
 LOAD_MODEL = False
 SAVE_MODEL = True
-CHECKPOINT_FILE = "/kaggle/working/yolov3_object_detection/"
+CHECKPOINT_PATH = "/kaggle/working/yolov3_object_detection/"
 IMG_DIR = DATASET + "/images/"
 LABEL_DIR = DATASET + "/labels/"
 
