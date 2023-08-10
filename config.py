@@ -7,7 +7,7 @@ from utils import seed_everything
 
 # DATASET = 'PASCAL_VOC'
 DATASET = '/kaggle/input/pascal-voc-dataset-used-in-yolov3-video/PASCAL_VOC'
-DEVICE = "cpu"
+DEVICE = "cuda"
 # seed_everything()  # If you want deterministic behavior
 NUM_WORKERS = 0
 BATCH_SIZE = 16
