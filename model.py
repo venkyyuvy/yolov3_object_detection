@@ -4,6 +4,7 @@ Implementation of YOLOv3 architecture
 
 import torch
 import torch.nn as nn
+from torch import optim
 
 """ 
 Information about architecture config:
@@ -162,6 +163,25 @@ class YOLOv3(nn.Module):
                     in_channels = in_channels * 3
 
         return layers
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(
+            self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
+        )
+        scheduler = OneCycleLR(
+            optimizer,
+            max_lr=self.best_lr,
+            steps_per_epoch=len(self.trainer.datamodule.train_dataloader()),
+            epochs=config.NUM_EPOCHS,
+            pct_start=5 / config.NUM_EPOCHS,
+            div_factor=100,
+            three_phase=False,
+            final_div_factor=100,
+            anneal_strategy="linear",
+        )
+        return [optimizer], [
+                {"scheduler": scheduler, "interval": "step", "frequency": 1}
+            ]
 
 
 if __name__ == "__main__":

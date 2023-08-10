@@ -3,7 +3,6 @@ Implementation of Yolo Loss Function similar to the one in Yolov3 paper,
 the difference from what I can tell is I use CrossEntropy for the classes
 instead of BinaryCrossEntropy.
 """
-import random
 import torch
 import torch.nn as nn
 
@@ -36,15 +35,25 @@ class YoloLoss(nn.Module):
         no_object_loss = self.bce(
             (predictions[..., 0:1][noobj]), (target[..., 0:1][noobj]),
         )
+        # no_object_loss.clamp_max_(max=20)
 
         # ==================== #
         #   FOR OBJECT LOSS    #
         # ==================== #
 
         anchors = anchors.reshape(1, 3, 1, 1, 2)
-        box_preds = torch.cat([self.sigmoid(predictions[..., 1:3]), torch.exp(predictions[..., 3:5]) * anchors], dim=-1)
-        ious = intersection_over_union(box_preds[obj], target[..., 1:5][obj]).detach()
-        object_loss = self.mse(self.sigmoid(predictions[..., 0:1][obj]), ious * target[..., 0:1][obj])
+        box_preds = torch.cat(
+            [
+                self.sigmoid(predictions[..., 1:3]),
+                torch.exp(predictions[..., 3:5]) * anchors
+            ],
+            dim=-1)
+        ious = intersection_over_union(
+            box_preds[obj], target[..., 1:5][obj]
+        ).detach().clamp(1e-4, 1)
+        object_loss = self.mse(self.sigmoid(predictions[..., 0:1][obj]),
+                               ious * target[..., 0:1][obj])
+        # object_loss.clamp_max_(max=20)
 
         # ======================== #
         #   FOR BOX COORDINATES    #
@@ -55,6 +64,7 @@ class YoloLoss(nn.Module):
             (1e-16 + target[..., 3:5] / anchors)
         )  # width, height coordinates
         box_loss = self.mse(predictions[..., 1:5][obj], target[..., 1:5][obj])
+        # box_loss.clamp_max_(max=20)
 
         # ================== #
         #   FOR CLASS LOSS   #
@@ -63,17 +73,21 @@ class YoloLoss(nn.Module):
         class_loss = self.entropy(
             (predictions[..., 5:][obj]), (target[..., 5][obj].long()),
         )
-
-        #print("__________________________________")
-        #print(self.lambda_box * box_loss)
-        #print(self.lambda_obj * object_loss)
-        #print(self.lambda_noobj * no_object_loss)
-        #print(self.lambda_class * class_loss)
-        #print("\n")
-
-        return (
+        # class_loss.clamp_max_(max=20)
+        
+        total_loss = (
             self.lambda_box * box_loss
             + self.lambda_obj * object_loss
             + self.lambda_noobj * no_object_loss
             + self.lambda_class * class_loss
         )
+
+        if torch.isnan(total_loss):
+            print("__________________________________")
+            print(self.lambda_box * box_loss)
+            print(self.lambda_noobj * no_object_loss)
+            print(self.lambda_obj * object_loss)
+            print(self.lambda_class * class_loss)
+            print("\n")
+
+        return total_loss

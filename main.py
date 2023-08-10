@@ -4,13 +4,9 @@ import torch.optim as optim
 
 from model import YOLOv3
 
-from tqdm import tqdm
 from utils import (
     mean_average_precision,
-    cells_to_bboxes,
     get_evaluation_bboxes,
-    save_checkpoint,
-    load_checkpoint,
     check_class_accuracy,
     get_loaders,
     plot_couple_examples
@@ -19,25 +15,22 @@ from loss import YoloLoss
 import warnings
 warnings.filterwarnings("ignore")
 from torch_lr_finder import LRFinder
-from pytorch_lightning import LightningModule, Trainer, seed_everything
-from pytorch_lightning.callbacks import LearningRateMonitor
-from pytorch_lightning.callbacks.progress import TQDMProgressBar
+from pytorch_lightning import LightningModule, Trainer, Callback
 from torch.optim.lr_scheduler import OneCycleLR
-from torch.optim.swa_utils import AveragedModel, update_bn
-from torchmetrics.functional import accuracy
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 
 class YoloV3(LightningModule):
-    def __init__(self, config):
+    def __init__(self, ):
         super().__init__()
 
-        self.config = config
         self.model = YOLOv3(num_classes=config.NUM_CLASSES)
         # todo
         #self.save_hyperparameters()
 
     def forward(self, x):
         return self.model(x)
+
 
     def lr_finder(self, optimizer, criterion, 
         num_iter=50, 
@@ -53,31 +46,29 @@ class YoloV3(LightningModule):
         return suggested_lr
 
     def training_step(self, batch, batch_idx):
+        opt = self.optimizers()
+        lr = opt.param_groups[0]['lr']
+        self.log('learning_rate', lr)
         x, y = batch
         out = self.model(x)
         loss = self.criterion(out, y)
-        self.log("train_loss", loss.item())
-        if (batch_idx + 1)  % 100 == 0:
-            check_class_accuracy(self.model, self.val_dataloader(),
-                                 threshold=config.CONF_THRESHOLD)
-
-            pred_boxes, true_boxes = get_evaluation_bboxes(
-                self.test_dataloader,
-                self.model,
-                iou_threshold=config.NMS_IOU_THRESH,
-                anchors=config.ANCHORS,
-                threshold=config.CONF_THRESHOLD,
-            )
-
-            mapval = mean_average_precision(
-                pred_boxes,
-                true_boxes,
-                iou_threshold=config.MAP_IOU_THRESH,
-                box_format="midpoint",
-                num_classes=config.NUM_CLASSES,
-            )
-            print(f"MAP: {mapval.item()}")
+        self.log(
+            "train_loss", loss, prog_bar=True,
+            logger=True, on_step=True, on_epoch=True
+        )
         return loss
+
+    def evaluate(self, batch, batch_idx, stage=None):
+        x, y = batch
+        out = self.model(x)
+        loss = self.criterion(out, y)
+        self.log('val_loss', loss.item())
+
+    def validation_step(self, batch, batch_idx):
+        self.evaluate(batch, batch_idx, "val", )
+
+    def test_step(self, batch, batch_idx):
+        self.evaluate(batch, batch_idx, "test", )
 
     @property
     def get_scaled_anchors(self):
@@ -88,50 +79,49 @@ class YoloV3(LightningModule):
         ).to(self.device)
 
     def criterion(self, out, y):
-        loss_fn = YoloLoss()
+        loss = YoloLoss()
         scaled_anchors = self.get_scaled_anchors
-        y0, y1, y2 = (
-                y[0].to(self.device),
-                y[1].to(self.device),
-                y[2].to(self.device),
-            )
-        loss = (
-                    loss_fn(out[0], y0, scaled_anchors[0])
-                    + loss_fn(out[1], y1, scaled_anchors[1])
-                    + loss_fn(out[2], y2, scaled_anchors[2])
-                )
-        return loss
+        y0, y1, y2 = (y[0], y[1], y[2])
+        return (
+            loss(out[0], y0, scaled_anchors[0])
+            + loss(out[1], y1, scaled_anchors[1])
+            + loss(out[2], y2, scaled_anchors[2])
+        )
 
     def configure_optimizers(self):
         optimizer = optim.Adam(
             self.parameters(),
-            lr=self.config.LEARNING_RATE,
-            weight_decay=self.config.WEIGHT_DECAY,
+            lr=config.LEARNING_RATE,
+            weight_decay=config.WEIGHT_DECAY,
         )
 
         # todo
         #suggested_lr = self.lr_finder(optimizer, self.criterion)
         steps_per_epoch = len(self.train_dataloader())
-        scheduler_dict = {
-            "scheduler":  OneCycleLR(
-        optimizer, max_lr=0.05,
-        steps_per_epoch=steps_per_epoch,
-        epochs=self.config.NUM_EPOCHS,
-        pct_start=5/self.config.NUM_EPOCHS,
-        three_phase=False,
-        div_factor=100,
-        final_div_factor=100,
-        anneal_strategy='linear',
-    ),
-            "interval": "step",
-        }
-        return {"optimizer": optimizer, "lr_scheduler": scheduler_dict}
+        scheduler = OneCycleLR(
+                optimizer, max_lr=1e-3,
+                steps_per_epoch=steps_per_epoch,
+                epochs=config.NUM_EPOCHS,
+                pct_start=5 / config.NUM_EPOCHS,
+                three_phase=False,
+                div_factor=100,
+                final_div_factor=100,
+                anneal_strategy='linear',)
+        # return {"optimizer": optimizer, "lr_scheduler": scheduler_dict}
+        return [optimizer], [
+                {"scheduler": scheduler, "interval": "step", "frequency": 1}
+            ]
+    def on_train_epoch_end(self) -> None:
+        print(
+            f"EPOCH: {self.current_epoch}, "
+            +f"Loss: {self.trainer.callback_metrics['train_loss_epoch']}"
+        )
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
             self.train_loader, self.test_loader, _ = get_loaders(
-                train_csv_path=self.config.DATASET + "/train.csv", 
-                test_csv_path=self.config.DATASET + "/test.csv"
+                train_csv_path=config.DATASET + "/train.csv", 
+                test_csv_path=config.DATASET + "/test.csv"
             )
 
     def train_dataloader(self):
@@ -140,20 +130,30 @@ class YoloV3(LightningModule):
     def val_dataloader(self):
         return self.test_loader
 
+checkpoint_callback = ModelCheckpoint(dirpath='lightning_logs/model_ckpt/',
+                                      every_n_train_steps=500,
+                                      save_top_k = -1)
 
 # initialize the trainer
 if __name__ == '__main__':
     trainer = Trainer(
+        callbacks=[checkpoint_callback],
         accelerator="mps", devices=1,
-        max_epochs = 20,
+        max_epochs = 40,
         enable_progress_bar = True,
         #overfit_batches = 10,
-        log_every_n_steps = 20,
+        log_every_n_steps = 10,
+        precision='16',
         # limit_train_batches=0.01,
+        # limit_val_batches=0.05,
         # limit_test_batches=0.01,
         #num_sanity_val_steps = 3
+        # detect_anomaly=True
     )
 
     # Train the model
-    yolo_v3 = YoloV3(config)
+    ckpt_fname = 'lightning_logs/model_ckpt/epoch=2-step=1500.ckpt'
+    yolo_v3 = YoloV3()
+    yolo_v3.load_from_checkpoint(ckpt_fname, )
     trainer.fit(yolo_v3)
+

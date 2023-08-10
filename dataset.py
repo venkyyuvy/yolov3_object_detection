@@ -6,6 +6,7 @@ import config
 import numpy as np
 import os
 import pandas as pd
+import pytorch_lightning as pl
 import torch
 from utils import xywhn2xyxy, xyxy2xywhn
 import random 
@@ -104,7 +105,13 @@ class YOLODataset(Dataset):
 
     def __getitem__(self, index):
 
-        image, bboxes = self.load_mosaic(index)
+        if random.random() < 0.75:
+            image, bboxes = self.load_mosaic(index)
+        else:
+            label_path = os.path.join(self.label_dir, self.annotations.iloc[index, 1])
+            bboxes = np.roll(np.loadtxt(fname=label_path, delimiter=" ", ndmin=2), 4, axis=1).tolist()
+            img_path = os.path.join(self.img_dir, self.annotations.iloc[index, 0])
+            image = np.array(Image.open(img_path).convert("RGB"))
 
         if self.transform:
             augmentations = self.transform(image=image, bboxes=bboxes)
@@ -144,15 +151,110 @@ class YOLODataset(Dataset):
         return image, tuple(targets)
 
 
+
+
+class YOLODataModule(pl.LightningDataModule):
+    def __init__(self, train_csv_path, test_csv_path):
+        super().__init__()
+        self.train_csv_path = train_csv_path
+        self.test_csv_path = test_csv_path
+        self.train_dataset = None
+        self.eval_dataset = None
+        self.test_dataset = None
+
+    def setup(self, stage=None):
+        self.train_dataset = YOLODataset(
+            self.train_csv_path,
+            transform=transforms.train_transforms,
+            S=[
+                config.IMAGE_SIZE // 32,
+                config.IMAGE_SIZE // 16,
+                config.IMAGE_SIZE // 8,
+            ],
+            img_dir=config.IMG_DIR,
+            label_dir=config.LABEL_DIR,
+            anchors=config.ANCHORS,
+            mosaic_percentage=config.TRAIN_MOSAIC_PERCENTAGE,
+        )
+
+        self.eval_dataset = YOLODataset(
+            self.train_csv_path,
+            transform=transforms.test_transforms,
+            S=[
+                config.IMAGE_SIZE // 32,
+                config.IMAGE_SIZE // 16,
+                config.IMAGE_SIZE // 8,
+            ],
+            img_dir=config.IMG_DIR,
+            label_dir=config.LABEL_DIR,
+            anchors=config.ANCHORS,
+            mosaic_percentage=config.TRAIN_MOSAIC_PERCENTAGE,
+        )
+
+        self.test_dataset = YOLODataset(
+            self.test_csv_path,
+            transform=transforms.test_transforms,
+            S=[
+                config.IMAGE_SIZE // 32,
+                config.IMAGE_SIZE // 16,
+                config.IMAGE_SIZE // 8,
+            ],
+            img_dir=config.IMG_DIR,
+            label_dir=config.LABEL_DIR,
+            anchors=config.ANCHORS,
+            mosaic_percentage=config.TEST_MOSAIC_PERCENTAGE,
+        )
+
+    def train_dataloader(self):
+        # return ResizeDataLoader(
+        #     dataset=self.train_dataset,
+        #     resolutions=config.INPUT_RESOLUTIONS,
+        #     cum_weights=config.INPUT_RESOLUTIONS_CUM_PROBS,
+        #     batch_size=config.BATCH_SIZE,
+        #     shuffle=True,
+        #     num_workers=config.NUM_WORKERS,
+        #     pin_memory=config.PIN_MEMORY,
+        #     drop_last=False,
+        # )
+        return DataLoader(
+            dataset=self.train_dataset,
+            batch_size=config.BATCH_SIZE,
+            shuffle=True,
+            num_workers=config.NUM_WORKERS,
+            pin_memory=config.PIN_MEMORY,
+            drop_last=False,
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            dataset=self.eval_dataset,
+            batch_size=config.BATCH_SIZE,
+            shuffle=False,
+            num_workers=config.NUM_WORKERS,
+            pin_memory=config.PIN_MEMORY,
+            drop_last=False,
+        )
+
+    def test_dataloader(self):
+        return DataLoader(
+            dataset=self.test_dataset,
+            batch_size=config.BATCH_SIZE,
+            shuffle=False,
+            num_workers=config.NUM_WORKERS,
+            pin_memory=config.PIN_MEMORY,
+            drop_last=False,
+        )
+
+
 def test():
     anchors = config.ANCHORS
 
     transform = config.test_transforms
 
     dataset = YOLODataset(
-        "COCO/train.csv",
-        "COCO/images/images/",
-        "COCO/labels/labels_new/",
+        "../data/PASCAL_VOC/2examples.csv",
+        "../data/PASCAL_VOC/images",
+        "../data/PASCAL_VOC/labels",
         S=[13, 26, 52],
         anchors=anchors,
         transform=transform,

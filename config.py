@@ -6,10 +6,10 @@ from albumentations.pytorch import ToTensorV2
 from utils import seed_everything
 
 DATASET = 'PASCAL_VOC'
-DEVICE = "mps" if torch.cuda.is_available() else "cpu"
-seed_everything()  # If you want deterministic behavior
+DEVICE = "mps"
+# seed_everything()  # If you want deterministic behavior
 NUM_WORKERS = 0
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 IMAGE_SIZE = 416
 NUM_CLASSES = 20
 LEARNING_RATE = 1e-5
