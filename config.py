@@ -5,8 +5,9 @@ import torch
 from albumentations.pytorch import ToTensorV2
 from utils import seed_everything
 
-DATASET = 'PASCAL_VOC'
-DEVICE = "mps"
+# DATASET = 'PASCAL_VOC'
+DATASET = '/kaggle/input/pascal-voc-dataset-used-in-yolov3-video/PASCAL_VOC'
+DEVICE = "cpu"
 # seed_everything()  # If you want deterministic behavior
 NUM_WORKERS = 0
 BATCH_SIZE = 16
@@ -22,7 +23,7 @@ S = [IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8]
 PIN_MEMORY = True
 LOAD_MODEL = False
 SAVE_MODEL = True
-CHECKPOINT_FILE = "checkpoint.pth.tar"
+CHECKPOINT_FILE = "/kaggle/working/yolov3_object_detection/"
 IMG_DIR = DATASET + "/images/"
 LABEL_DIR = DATASET + "/labels/"
 

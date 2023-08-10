@@ -130,9 +130,10 @@ class YoloV3(LightningModule):
     def val_dataloader(self):
         return self.test_loader
 
-checkpoint_callback = ModelCheckpoint(dirpath='lightning_logs/model_ckpt/',
-                                      every_n_train_steps=500,
-                                      save_top_k = -1)
+checkpoint_callback = ModelCheckpoint(
+    dirpath=config.CHECKPOINT_FILE,
+    save_on_train_epoch_end=True,
+)
 
 # initialize the trainer
 if __name__ == '__main__':
