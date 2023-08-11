@@ -165,7 +165,7 @@ class YOLODataModule(pl.LightningDataModule):
     def setup(self, stage=None):
         self.train_dataset = YOLODataset(
             self.train_csv_path,
-            transform=transforms.train_transforms,
+            transform=config.train_transforms,
             S=[
                 config.IMAGE_SIZE // 32,
                 config.IMAGE_SIZE // 16,
