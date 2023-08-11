@@ -87,7 +87,6 @@ class MAPCallback(pl.Callback):
                 iou_threshold=config.NMS_IOU_THRESH,
                 anchors=config.ANCHORS,
                 threshold=config.CONF_THRESHOLD,
-                device=config.DEVICE,
             )
 
             map_val = mean_average_precision(
