@@ -174,12 +174,11 @@ class YOLODataModule(pl.LightningDataModule):
             img_dir=config.IMG_DIR,
             label_dir=config.LABEL_DIR,
             anchors=config.ANCHORS,
-            mosaic_percentage=config.TRAIN_MOSAIC_PERCENTAGE,
         )
 
         self.eval_dataset = YOLODataset(
             self.train_csv_path,
-            transform=transforms.test_transforms,
+            transform=config.test_transforms,
             S=[
                 config.IMAGE_SIZE // 32,
                 config.IMAGE_SIZE // 16,
@@ -188,12 +187,11 @@ class YOLODataModule(pl.LightningDataModule):
             img_dir=config.IMG_DIR,
             label_dir=config.LABEL_DIR,
             anchors=config.ANCHORS,
-            mosaic_percentage=config.TRAIN_MOSAIC_PERCENTAGE,
         )
 
         self.test_dataset = YOLODataset(
             self.test_csv_path,
-            transform=transforms.test_transforms,
+            transform=config.test_transforms,
             S=[
                 config.IMAGE_SIZE // 32,
                 config.IMAGE_SIZE // 16,
@@ -202,20 +200,9 @@ class YOLODataModule(pl.LightningDataModule):
             img_dir=config.IMG_DIR,
             label_dir=config.LABEL_DIR,
             anchors=config.ANCHORS,
-            mosaic_percentage=config.TEST_MOSAIC_PERCENTAGE,
         )
 
     def train_dataloader(self):
-        # return ResizeDataLoader(
-        #     dataset=self.train_dataset,
-        #     resolutions=config.INPUT_RESOLUTIONS,
-        #     cum_weights=config.INPUT_RESOLUTIONS_CUM_PROBS,
-        #     batch_size=config.BATCH_SIZE,
-        #     shuffle=True,
-        #     num_workers=config.NUM_WORKERS,
-        #     pin_memory=config.PIN_MEMORY,
-        #     drop_last=False,
-        # )
         return DataLoader(
             dataset=self.train_dataset,
             batch_size=config.BATCH_SIZE,

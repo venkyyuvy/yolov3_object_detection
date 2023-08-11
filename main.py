@@ -15,6 +15,8 @@ from callbacks import (
 )
 from utils import get_loaders
 from loss import YoloLoss
+from dataset import YOLODataModule
+
 
 
 class YoloV3(LightningModule):
@@ -94,7 +96,8 @@ class YoloV3(LightningModule):
 
         # todo
         #suggested_lr = self.lr_finder(optimizer, self.criterion)
-        steps_per_epoch = len(self.train_dataloader())
+        steps_per_epoch = len(self.datamodule.train_dataloader())
+        # steps_per_epoch = len(self.train_dataloader())
         scheduler = OneCycleLR(
                 optimizer, max_lr=1e-3,
                 steps_per_epoch=steps_per_epoch,
@@ -114,19 +117,19 @@ class YoloV3(LightningModule):
             +f"Loss: {self.trainer.callback_metrics['train_loss_epoch']}"
         )
 
-    def setup(self, stage=None):
-        if stage == 'fit' or stage is None:
-            self.train_loader, self.test_loader, _ = get_loaders(
-                train_csv_path=config.DATASET + "/train.csv", 
-                test_csv_path=config.DATASET + "/test.csv"
-            )
-
-    def train_dataloader(self):
-        return self.train_loader
-
-    def val_dataloader(self):
-        return self.test_loader
-
+    # def setup(self, stage=None):
+    #     if stage == 'fit' or stage is None:
+    #         self.train_loader, self.test_loader, _ = get_loaders(
+    #             train_csv_path=config.DATASET + "/train.csv", 
+    #             test_csv_path=config.DATASET + "/test.csv"
+    #         )
+    #
+    # def train_dataloader(self):
+    #     return self.train_loader
+    #
+    # def val_dataloader(self):
+    #     return self.test_loader
+    #
 
 if __name__ == '__main__':
     trainer = Trainer(
@@ -158,9 +161,15 @@ if __name__ == '__main__':
         # detect_anomaly=True
     )
 
+
+    data_module = YOLODataModule(
+        train_csv_path=config.DATASET + "/train.csv",
+        test_csv_path=config.DATASET + "/test.csv",
+    )
+
     # Train the model
     ckpt_fname = config.CHECKPOINT_PATH + '/epoch=1-step=2070.ckpt'
     yolo_v3 = YoloV3()
     # yolo_v3.load_from_checkpoint(ckpt_fname)
-    trainer.fit(yolo_v3)
+    trainer.fit(yolo_v3, data_module)
 
