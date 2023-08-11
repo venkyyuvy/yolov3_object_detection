@@ -96,7 +96,7 @@ class YoloV3(LightningModule):
 
         # todo
         #suggested_lr = self.lr_finder(optimizer, self.criterion)
-        steps_per_epoch = len(self.datamodule.train_dataloader())
+        steps_per_epoch = len(self.trainer.datamodule.train_dataloader())
         # steps_per_epoch = len(self.train_dataloader())
         scheduler = OneCycleLR(
                 optimizer, max_lr=1e-3,
@@ -109,7 +109,8 @@ class YoloV3(LightningModule):
                 anneal_strategy='linear',)
         # return {"optimizer": optimizer, "lr_scheduler": scheduler_dict}
         return [optimizer], [
-                {"scheduler": scheduler, "interval": "step", "frequency": 1}
+                {"scheduler": scheduler, "interval": "step", 
+                 "frequency": 1}
             ]
     def on_train_epoch_end(self) -> None:
         print(
@@ -148,7 +149,7 @@ if __name__ == '__main__':
                                 log_momentum=True),
         ],
         accelerator=config.DEVICE, devices=-1,
-        strategy="ddp_find_unused_parameters_true",
+        # strategy="ddp_find_unused_parameters_true",
         max_epochs = 40,
         enable_progress_bar = True,
         #overfit_batches = 10,
