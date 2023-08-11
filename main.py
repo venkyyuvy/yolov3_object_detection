@@ -151,7 +151,7 @@ if __name__ == '__main__':
         #overfit_batches = 10,
         log_every_n_steps = 10,
         precision='16-mixed',
-        # limit_train_batches=0.01,
+        limit_train_batches=0.01,
         limit_val_batches=0.25,
         # limit_test_batches=0.01,
         #num_sanity_val_steps = 3
