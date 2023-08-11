@@ -283,7 +283,6 @@ def get_evaluation_bboxes(
     iou_threshold,
     anchors,
     threshold,
-    device="mps",
     box_format="midpoint",
 ):
     # make sure model is in eval before get bboxes
@@ -292,7 +291,6 @@ def get_evaluation_bboxes(
     all_pred_boxes = []
     all_true_boxes = []
     for batch_idx, (x, labels) in enumerate(tqdm(loader)):
-        x = x.to(device)
 
         with torch.no_grad():
             predictions = model(x)
@@ -301,7 +299,7 @@ def get_evaluation_bboxes(
         bboxes = [[] for _ in range(batch_size)]
         for i in range(3):
             S = predictions[i].shape[2]
-            anchor = torch.tensor([*anchors[i]]).to(device) * S
+            anchor = torch.tensor([*anchors[i]]) * S
             boxes_scale_i = cells_to_bboxes(
                 predictions[i], anchor, S=S, is_preds=True
             )
@@ -365,7 +363,6 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
         torch.arange(S)
         .repeat(predictions.shape[0], 3, S, 1)
         .unsqueeze(-1)
-        .to(predictions.device)
     )
     x = 1 / S * (box_predictions[..., 0:1] + cell_indices)
     y = 1 / S * (box_predictions[..., 1:2] + cell_indices.permute(0, 1, 3, 2, 4))
@@ -374,19 +371,18 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
         .reshape(BATCH_SIZE, num_anchors * S * S, 6)
     return converted_bboxes.tolist()
 
-def check_class_accuracy(model, loader, threshold, device, name):
+def check_class_accuracy(model, loader, threshold):
     model.eval()
     tot_class_preds, correct_class = 0, 0
     tot_noobj, correct_noobj = 0, 0
     tot_obj, correct_obj = 0, 0
 
     for idx, (x, y) in enumerate(tqdm(loader)):
-        x = x.to(device)
         with torch.no_grad():
             out = model(x)
 
         for i in range(3):
-            y[i] = y[i].to(device)
+            y[i] = y[i]
             obj = y[i][..., 0] == 1 # in paper this is Iobj_i
             noobj = y[i][..., 0] == 0  # in paper this is Iobj_i
 
@@ -405,11 +401,10 @@ def check_class_accuracy(model, loader, threshold, device, name):
     print(f"No obj accuracy is: {(correct_noobj/(tot_noobj+1e-16))*100:2f}%")
     print(f"Obj accuracy is: {(correct_obj/(tot_obj+1e-16))*100:2f}%")
     model.train()
-    return {
-        f'{name} class_accuracy': (correct_class/(tot_class_preds+1e-16))*100,
-        f'{name} no_obj_accuracy': (correct_noobj/(tot_noobj+1e-16))*100,
-        f'{name} obj_accuracy': (correct_obj/(tot_obj+1e-16))*100
-    }
+    return [(correct_class/(tot_class_preds+1e-16))*100,
+        (correct_noobj/(tot_noobj+1e-16))*100,
+        (correct_obj/(tot_obj+1e-16))*100
+    ]
 
 
 
@@ -505,10 +500,9 @@ def get_loaders(train_csv_path, test_csv_path):
 
     return train_loader, test_loader, train_eval_loader
 
-def plot_couple_examples(model, loader, thresh, iou_thresh, anchors, device):
+def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
     model.eval()
     x, y = next(iter(loader))
-    x = x.to(device)
     with torch.no_grad():
         out = model(x)
         bboxes = [[] for _ in range(x.shape[0])]
