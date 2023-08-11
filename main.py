@@ -169,7 +169,7 @@ if __name__ == '__main__':
     )
 
     # Train the model
-    ckpt_fname = config.CHECKPOINT_PATH + '/epoch=1-step=2070.ckpt'
+    ckpt_fname = config.CHECKPOINT_PATH + '/epoch=0-step=518.ckpt'
     yolo_v3 = YoloV3()
     yolo_v3.load_from_checkpoint(ckpt_fname)
     trainer.fit(yolo_v3, data_module)
