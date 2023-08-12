@@ -24,7 +24,7 @@ class PlotTestExamplesCallback(pl.Callback):
                 loader=trainer.datamodule.train_dataloader(),
                 thresh=0.6,
                 iou_thresh=0.5,
-                anchors=pl_module.scaled_anchors,
+                anchors=pl_module.get_scaled_anchors,
             )
 
 

@@ -2,7 +2,7 @@ import config
 import torch
 import torch.optim as optim
 from torch_lr_finder import LRFinder
-from pytorch_lightning import LightningModule, Trainer, Callback
+from pytorch_lightning import LightningModule, Trainer
 from torch.optim.lr_scheduler import OneCycleLR
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
@@ -13,23 +13,17 @@ from callbacks import (
     MAPCallback,
     PlotTestExamplesCallback,
 )
-from utils import get_loaders
 from loss import YoloLoss
 from dataset import YOLODataModule
 
 
 
-class YoloV3(LightningModule):
-    def __init__(self, ):
-        super().__init__()
+class YoloV3(YOLOv3, LightningModule):
+    def __init__(self, num_classes=config.NUM_CLASSES):
+        super().__init__(num_classes=num_classes)
 
-        self.model = YOLOv3(num_classes=config.NUM_CLASSES)
         # todo
         #self.save_hyperparameters()
-
-    def forward(self, x):
-        return self.model(x)
-
 
     def lr_finder(self, optimizer, criterion, 
         num_iter=50, 
@@ -40,7 +34,7 @@ class YoloV3(LightningModule):
             self.train_dataloader(), end_lr=1,
             num_iter=num_iter, step_mode='exp',
             )
-        ax, suggested_lr = lr_finder.plot(suggest_lr=True)
+        _, suggested_lr = lr_finder.plot(suggest_lr=True)
         lr_finder.reset() 
         return suggested_lr
 
@@ -49,7 +43,7 @@ class YoloV3(LightningModule):
         lr = opt.param_groups[0]['lr']
         self.log('learning_rate', lr)
         x, y = batch
-        out = self.model(x)
+        out = self(x)
         loss = self.criterion(out, y)
         self.log(
             "train_loss", loss, prog_bar=True,
@@ -59,9 +53,10 @@ class YoloV3(LightningModule):
 
     def evaluate(self, batch, batch_idx, stage=None):
         x, y = batch
-        out = self.model(x)
+        out = self(x)
         loss = self.criterion(out, y)
         self.log('val_loss', loss.item())
+        return loss
 
     def validation_step(self, batch, batch_idx):
         self.evaluate(batch, batch_idx, "val", )
@@ -140,24 +135,25 @@ if __name__ == '__main__':
                 save_on_train_epoch_end=True,
                 verbose=True,
             ),
-            PlotTestExamplesCallback(every_n_epochs=10),
+            PlotTestExamplesCallback(every_n_epochs=1),
             CheckClassAccuracyCallback(
-                train_every_n_epochs=2, 
-                test_every_n_epochs=5),
+                train_every_n_epochs=1, 
+                test_every_n_epochs=1),
             MAPCallback(every_n_epochs=40),
             LearningRateMonitor(logging_interval="step",
                                 log_momentum=True),
         ],
         accelerator=config.DEVICE, devices=-1,
-        strategy="ddp_find_unused_parameters_true",
+        strategy=config.STRATEGY,
         max_epochs = 40,
         enable_progress_bar = True,
         #overfit_batches = 10,
         log_every_n_steps = 10,
         precision='16-mixed',
-        # limit_train_batches=0.01,
-        # limit_val_batches=0.25,
-        # limit_test_batches=0.01,
+        limit_train_batches=0.01,
+        limit_val_batches=0.05,
+        check_val_every_n_epoch=10,
+        limit_test_batches=0.01,
         #num_sanity_val_steps = 3
         # detect_anomaly=True
     )
@@ -171,6 +167,6 @@ if __name__ == '__main__':
     # Train the model
     ckpt_fname = config.CHECKPOINT_PATH + '/epoch=0-step=518-v1.ckpt'
     yolo_v3 = YoloV3()
-    yolo_v3.load_from_checkpoint(ckpt_fname)
+    # yolo_v3.load_from_checkpoint(ckpt_fname)
     trainer.fit(yolo_v3, data_module)
 

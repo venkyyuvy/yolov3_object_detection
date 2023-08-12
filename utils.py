@@ -363,7 +363,7 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
         torch.arange(S)
         .repeat(predictions.shape[0], 3, S, 1)
         .unsqueeze(-1)
-    )
+    ).to(config.DEVICE)
     x = 1 / S * (box_predictions[..., 0:1] + cell_indices)
     y = 1 / S * (box_predictions[..., 1:2] + cell_indices.permute(0, 1, 3, 2, 4))
     w_h = 1 / S * box_predictions[..., 2:4]
@@ -378,6 +378,9 @@ def check_class_accuracy(model, loader, threshold):
     tot_obj, correct_obj = 0, 0
 
     for idx, (x, y) in enumerate(tqdm(loader)):
+        if idx >= 4:
+            break
+
         x = x.to(config.DEVICE)
 
         with torch.no_grad():

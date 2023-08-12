@@ -5,9 +5,16 @@ import torch
 from albumentations.pytorch import ToTensorV2
 from utils import seed_everything
 
-# DATASET = 'PASCAL_VOC'
-DATASET = '/kaggle/input/pascal-voc-dataset-used-in-yolov3-video/PASCAL_VOC'
-DEVICE = "cuda"
+DATASET = 'PASCAL_VOC'
+DEVICE = "mps"
+# DEVICE = "cuda"
+# DATASET = '/kaggle/input/pascal-voc-dataset-used-in-yolov3-video/PASCAL_VOC'
+if DEVICE == 'cuda':
+    STRATEGY = "ddp_find_unused_parameters_true"
+    CHECKPOINT_PATH = "/kaggle/working/store/"
+else:
+    STRATEGY = 'auto'
+    CHECKPOINT_PATH = "./lightning_logs/model_ckpt/"
 # seed_everything()  # If you want deterministic behavior
 NUM_WORKERS = 0
 BATCH_SIZE = 16
@@ -23,7 +30,6 @@ S = [IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8]
 PIN_MEMORY = True
 LOAD_MODEL = False
 SAVE_MODEL = True
-CHECKPOINT_PATH = "/kaggle/working/store/"
 IMG_DIR = DATASET + "/images/"
 LABEL_DIR = DATASET + "/labels/"
 
