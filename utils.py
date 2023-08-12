@@ -378,9 +378,9 @@ def check_class_accuracy(model, loader, threshold):
     tot_obj, correct_obj = 0, 0
 
     for idx, (x, y) in enumerate(tqdm(loader)):
-        if idx >= 4:
-            break
-
+        # if idx >= 4:
+        #     break
+        #
         x = x.to(config.DEVICE)
 
         with torch.no_grad():
