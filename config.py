@@ -1,18 +1,17 @@
 import albumentations as A
 import cv2
-import torch
 
 from albumentations.pytorch import ToTensorV2
 from utils import seed_everything
 
-DATASET = 'PASCAL_VOC'
-DEVICE = "mps"
-# DEVICE = "cuda"
-# DATASET = '/kaggle/input/pascal-voc-dataset-used-in-yolov3-video/PASCAL_VOC'
+# DEVICE = "mps"
+DEVICE = "cuda"
 if DEVICE == 'cuda':
+    DATASET = '/kaggle/input/pascal-voc-dataset-used-in-yolov3-video/PASCAL_VOC'
     STRATEGY = "ddp_find_unused_parameters_true"
     CHECKPOINT_PATH = "/kaggle/working/store/"
 else:
+    DATASET = 'PASCAL_VOC'
     STRATEGY = 'auto'
     CHECKPOINT_PATH = "./lightning_logs/model_ckpt/"
 # seed_everything()  # If you want deterministic behavior
