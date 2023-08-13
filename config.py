@@ -4,8 +4,8 @@ import cv2
 from albumentations.pytorch import ToTensorV2
 from utils import seed_everything
 
-# DEVICE = "mps"
-DEVICE = "cuda"
+DEVICE = "mps"
+# DEVICE = "cuda"
 if DEVICE == 'cuda':
     DATASET = '/kaggle/input/pascal-voc-dataset-used-in-yolov3-video/PASCAL_VOC'
     STRATEGY = "ddp_find_unused_parameters_true"
@@ -21,7 +21,7 @@ IMAGE_SIZE = 416
 NUM_CLASSES = 20
 LEARNING_RATE = 1e-5
 WEIGHT_DECAY = 1e-4
-NUM_EPOCHS = 40
+NUM_EPOCHS = 20
 CONF_THRESHOLD = 0.05
 MAP_IOU_THRESH = 0.5
 NMS_IOU_THRESH = 0.45
