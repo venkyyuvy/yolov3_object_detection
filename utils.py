@@ -310,7 +310,7 @@ def get_evaluation_bboxes(
 
         # we just want one bbox for each label, not one for each scale
         true_bboxes = cells_to_bboxes(
-            labels[2], anchor, S=S, is_preds=False
+            labels[2].to(config.DEVICE), anchor, S=S, is_preds=False
         )
 
         for idx in range(batch_size):
