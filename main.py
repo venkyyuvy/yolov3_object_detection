@@ -2,6 +2,7 @@ import config
 import torch
 import torch.optim as optim
 from torch_lr_finder import LRFinder
+import pytorch_lightning as pl
 from pytorch_lightning import LightningModule, Trainer
 from torch.optim.lr_scheduler import OneCycleLR
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -11,7 +12,11 @@ from model import YOLOv3
 from callbacks import (
     CheckClassAccuracyCallback,
     MAPCallback,
-    PlotTestExamplesCallback,
+    PlotTestExamplesCallback
+)
+from utils import (
+    plot_couple_examples,
+    check_class_accuracy
 )
 from loss import YoloLoss
 from dataset import YOLODataModule
@@ -19,9 +24,11 @@ from dataset import YOLODataModule
 
 
 class YoloV3(YOLOv3, LightningModule):
-    def __init__(self, num_classes=config.NUM_CLASSES):
-        super().__init__(num_classes=num_classes)
-
+    def __init__(self, ):
+        super().__init__(num_classes=config.NUM_CLASSES)
+        self.train_accuracy = False
+        self.test_accuracy = False
+        self.plot_images = False
         # todo
         #self.save_hyperparameters()
 
@@ -49,13 +56,42 @@ class YoloV3(YOLOv3, LightningModule):
             "train_loss", loss, prog_bar=True,
             logger=True, on_step=True, on_epoch=True
         )
+        if self.plot_images and batch_idx == 1:
+            plot_couple_examples(
+                model=self,
+                batch=batch,
+                thresh=0.6,
+                iou_thresh=0.5,
+                anchors=self.get_scaled_anchors,
+            )
+
+        if self.train_accuracy:
+            accuracy = check_class_accuracy(
+                model=self,
+                batch=batch,
+                threshold=config.CONF_THRESHOLD,
+                tag='train'
+            )
+
+            self.log_dict(accuracy)
+
         return loss
+
 
     def evaluate(self, batch, batch_idx, stage=None):
         x, y = batch
         out = self(x)
         loss = self.criterion(out, y)
         self.log('val_loss', loss.item())
+        if self.test_accuracy:
+            accuracy = check_class_accuracy(
+                model=self,
+                batch=batch,
+                threshold=config.CONF_THRESHOLD,
+                tag='test'
+            )
+
+            self.log_dict(accuracy)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -92,7 +128,6 @@ class YoloV3(YOLOv3, LightningModule):
         # todo
         #suggested_lr = self.lr_finder(optimizer, self.criterion)
         steps_per_epoch = len(self.trainer.datamodule.train_dataloader())
-        # steps_per_epoch = len(self.train_dataloader())
         scheduler = OneCycleLR(
                 optimizer, max_lr=1e-3,
                 steps_per_epoch=steps_per_epoch,
@@ -102,44 +137,30 @@ class YoloV3(YOLOv3, LightningModule):
                 div_factor=100,
                 final_div_factor=100,
                 anneal_strategy='linear',)
-        # return {"optimizer": optimizer, "lr_scheduler": scheduler_dict}
         return [optimizer], [
                 {"scheduler": scheduler, "interval": "step", 
                  "frequency": 1}
             ]
     def on_train_epoch_end(self) -> None:
         print(
-            f"EPOCH: {self.current_epoch}, "
+            f"\nEPOCH: {self.current_epoch}, "
             +f"Loss: {self.trainer.callback_metrics['train_loss_epoch']}"
         )
-
-    # def setup(self, stage=None):
-    #     if stage == 'fit' or stage is None:
-    #         self.train_loader, self.test_loader, _ = get_loaders(
-    #             train_csv_path=config.DATASET + "/train.csv", 
-    #             test_csv_path=config.DATASET + "/test.csv"
-    #         )
-    #
-    # def train_dataloader(self):
-    #     return self.train_loader
-    #
-    # def val_dataloader(self):
-    #     return self.test_loader
-    #
-
 if __name__ == '__main__':
     trainer = Trainer(
         callbacks=[
             ModelCheckpoint(
                 dirpath=config.CHECKPOINT_PATH,
+                monitor='train_loss',
+                save_top_k=4,
                 save_on_train_epoch_end=True,
                 verbose=True,
             ),
-            PlotTestExamplesCallback(every_n_epochs=5),
+            PlotTestExamplesCallback(every_n_epochs=1),
             CheckClassAccuracyCallback(
-                train_every_n_epochs=3, 
-                test_every_n_epochs=10),
-            MAPCallback(every_n_epochs=40),
+                train_every_n_epochs=1, 
+                test_every_n_epochs=1),
+            MAPCallback(),
             LearningRateMonitor(logging_interval="step",
                                 log_momentum=True),
         ],
@@ -152,9 +173,9 @@ if __name__ == '__main__':
         precision='16-mixed',
         # limit_train_batches=0.01,
         # limit_val_batches=0.05,
-        check_val_every_n_epoch=10,
+        # check_val_every_n_epoch=10,
         # limit_test_batches=0.01,
-        #num_sanity_val_steps = 3
+        # num_sanity_val_steps = 0
         # detect_anomaly=True
     )
 
@@ -165,8 +186,14 @@ if __name__ == '__main__':
     )
 
     # Train the model
-    ckpt_fname = config.CHECKPOINT_PATH + '/epoch=0-step=518-v1.ckpt'
-    yolo_v3 = YoloV3()
-    # yolo_v3.load_from_checkpoint(ckpt_fname)
-    trainer.fit(yolo_v3, data_module)
+    checkpoint_path = config.CHECKPOINT_PATH + '/epoch=38-step=20202.ckpt'
+    # Load the checkpoint
+
+    # Load the model state_dict from the checkpoint
+    yolo_v3 = YoloV3.load_from_checkpoint(checkpoint_path, 
+        map_location=config.DEVICE)
+
+    # Instantiate a Trainer and continue training
+    trainer.fit(yolo_v3, data_module, ckpt_path=checkpoint_path,)
+    # trainer.fit(yolo_v3, data_module)
 

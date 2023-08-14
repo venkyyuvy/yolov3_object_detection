@@ -300,6 +300,7 @@ def get_evaluation_bboxes(
         for i in range(3):
             S = predictions[i].shape[2]
             anchor = torch.tensor([*anchors[i]]) * S
+            anchor = anchor.to(config.DEVICE)
             boxes_scale_i = cells_to_bboxes(
                 predictions[i], anchor, S=S, is_preds=True
             )
@@ -308,7 +309,7 @@ def get_evaluation_bboxes(
 
         # we just want one bbox for each label, not one for each scale
         true_bboxes = cells_to_bboxes(
-            labels[2], anchor, S=S, is_preds=False
+            labels[2].to(config.DEVICE), anchor, S=S, is_preds=False
         )
 
         for idx in range(batch_size):
@@ -348,7 +349,7 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
     """
     BATCH_SIZE = predictions.shape[0]
     num_anchors = len(anchors)
-    box_predictions = predictions[..., 1:5]
+    box_predictions = predictions[..., 1:5].to(config.DEVICE)
     if is_preds:
         anchors = anchors.reshape(1, len(anchors), 1, 1, 2)
         box_predictions[..., 0:2] = torch.sigmoid(box_predictions[..., 0:2])
@@ -366,50 +367,46 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
     ).to(config.DEVICE)
     x = 1 / S * (box_predictions[..., 0:1] + cell_indices)
     y = 1 / S * (box_predictions[..., 1:2] + cell_indices.permute(0, 1, 3, 2, 4))
-    w_h = 1 / S * box_predictions[..., 2:4]
+    w_h = 1 / S * box_predictions[..., 2:4].to(config.DEVICE)
     converted_bboxes = torch.cat((best_class, scores, x, y, w_h), dim=-1)\
         .reshape(BATCH_SIZE, num_anchors * S * S, 6)
     return converted_bboxes.tolist()
 
-def check_class_accuracy(model, loader, threshold):
+def check_class_accuracy(model, batch, threshold, tag='train'):
     model.eval()
     tot_class_preds, correct_class = 0, 0
     tot_noobj, correct_noobj = 0, 0
     tot_obj, correct_obj = 0, 0
+    x, y = batch
 
-    for idx, (x, y) in enumerate(tqdm(loader)):
-        # if idx >= 4:
-        #     break
-        #
-        x = x.to(config.DEVICE)
+    x = x.to(config.DEVICE)
 
-        with torch.no_grad():
-            out = model(x)
+    with torch.no_grad():
+        out = model(x)
 
-        for i in range(3):
-            y[i] = y[i].to(config.DEVICE)
-            obj = y[i][..., 0] == 1 # in paper this is Iobj_i
-            noobj = y[i][..., 0] == 0  # in paper this is Iobj_i
+    for i in range(3):
+        y[i] = y[i].to(config.DEVICE)
+        obj = y[i][..., 0] == 1 # in paper this is Iobj_i
+        noobj = y[i][..., 0] == 0  # in paper this is Iobj_i
 
-            correct_class += torch.sum(
-                torch.argmax(out[i][..., 5:][obj], dim=-1) == y[i][..., 5][obj]
-            )
-            tot_class_preds += torch.sum(obj)
+        correct_class += torch.sum(
+            torch.argmax(out[i][..., 5:][obj], dim=-1) == y[i][..., 5][obj]
+        )
+        tot_class_preds += torch.sum(obj)
 
-            obj_preds = torch.sigmoid(out[i][..., 0]) > threshold
-            correct_obj += torch.sum(obj_preds[obj] == y[i][..., 0][obj])
-            tot_obj += torch.sum(obj)
-            correct_noobj += torch.sum(obj_preds[noobj] == y[i][..., 0][noobj])
-            tot_noobj += torch.sum(noobj)
+        obj_preds = torch.sigmoid(out[i][..., 0]) > threshold
+        correct_obj += torch.sum(obj_preds[obj] == y[i][..., 0][obj])
+        tot_obj += torch.sum(obj)
+        correct_noobj += torch.sum(obj_preds[noobj] == y[i][..., 0][noobj])
+        tot_noobj += torch.sum(noobj)
 
-    print(f"Class accuracy is: {(correct_class/(tot_class_preds+1e-16))*100:2f}%")
-    print(f"No obj accuracy is: {(correct_noobj/(tot_noobj+1e-16))*100:2f}%")
-    print(f"Obj accuracy is: {(correct_obj/(tot_obj+1e-16))*100:2f}%")
+    ans = {
+        f"{tag}_class_accuracy": (correct_class/(tot_class_preds+1e-16))*100,
+        f"{tag}_no_obj_accuracy": (correct_noobj/(tot_noobj+1e-16))*100,
+        f"{tag}_obj_accuracy": (correct_obj/(tot_obj+1e-16))*100
+    }
     model.train()
-    return [(correct_class/(tot_class_preds+1e-16))*100,
-        (correct_noobj/(tot_noobj+1e-16))*100,
-        (correct_obj/(tot_obj+1e-16))*100
-    ]
+    return ans
 
 
 
@@ -505,15 +502,16 @@ def get_loaders(train_csv_path, test_csv_path):
 
     return train_loader, test_loader, train_eval_loader
 
-def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
+def plot_couple_examples(model, batch, thresh, iou_thresh, anchors):
     model.eval()
-    x, _ = next(iter(loader))
+    x, _ = batch
     x = x.to(config.DEVICE)
+    batch_size = x.shape[0]
     with torch.no_grad():
         out = model(x)
         bboxes = [[] for _ in range(x.shape[0])]
         for i in range(3):
-            batch_size, A, S, _, _ = out[i].shape
+            batch_size, _, S, _, _ = out[i].shape
             anchor = anchors[i]
             boxes_scale_i = cells_to_bboxes(
                 out[i], anchor, S=S, is_preds=True
@@ -525,7 +523,8 @@ def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
 
     for i in range(batch_size//4):
         nms_boxes = non_max_suppression(
-            bboxes[i], iou_threshold=iou_thresh, threshold=thresh, box_format="midpoint",
+            bboxes[i], iou_threshold=iou_thresh, 
+            threshold=thresh, box_format="midpoint",
         )
         plot_image(x[i].permute(1,2,0).detach().cpu(), nms_boxes)
 
