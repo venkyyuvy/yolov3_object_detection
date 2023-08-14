@@ -2,6 +2,7 @@ import config
 import torch
 import torch.optim as optim
 from torch_lr_finder import LRFinder
+import pytorch_lightning as pl
 from pytorch_lightning import LightningModule, Trainer
 from torch.optim.lr_scheduler import OneCycleLR
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -155,10 +156,10 @@ if __name__ == '__main__':
                 save_on_train_epoch_end=True,
                 verbose=True,
             ),
-            PlotTestExamplesCallback(every_n_epochs=5),
+            PlotTestExamplesCallback(every_n_epochs=1),
             CheckClassAccuracyCallback(
-                train_every_n_epochs=2, 
-                test_every_n_epochs=5),
+                train_every_n_epochs=1, 
+                test_every_n_epochs=1),
             MAPCallback(),
             LearningRateMonitor(logging_interval="step",
                                 log_momentum=True),
@@ -170,8 +171,8 @@ if __name__ == '__main__':
         #overfit_batches = 10,
         log_every_n_steps = 10,
         precision='16-mixed',
-        # limit_train_batches=0.01,
-        # limit_val_batches=0.05,
+        limit_train_batches=0.01,
+        limit_val_batches=0.05,
         # check_val_every_n_epoch=10,
         # limit_test_batches=0.01,
         # num_sanity_val_steps = 0
@@ -185,8 +186,20 @@ if __name__ == '__main__':
     )
 
     # Train the model
-    ckpt_fname = config.CHECKPOINT_PATH + '/epoch=36-step=19166.ckpt'
-    yolo_v3 = YoloV3.load_from_checkpoint(ckpt_fname, 
-        map_location=config.DEVICE)
-    trainer.fit(yolo_v3, data_module)
+    checkpoint_path = config.CHECKPOINT_PATH + '/epoch=28-step=15022.ckpt'
+    # Load the checkpoint
+    checkpoint = pl.load_checkpoint(checkpoint_path)
+
+    # Load the model state_dict from the checkpoint
+    yolo_v3 = YoloV3(num_classes=20)
+    yolo_v3.load_state_dict(checkpoint['state_dict'])
+
+    # Instantiate a Trainer and continue training
+    trainer = pl.Trainer(
+        resume_from_checkpoint=checkpoint_path,
+        max_epochs=40)
+    trainer.fit(yolo_v3)
+    # yolo_v3 = YoloV3.load_from_checkpoint(ckpt_fname, 
+    #     map_location=config.DEVICE)
+    # trainer.fit(yolo_v3, data_module)
 
