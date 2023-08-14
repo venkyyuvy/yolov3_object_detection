@@ -349,7 +349,7 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
     """
     BATCH_SIZE = predictions.shape[0]
     num_anchors = len(anchors)
-    box_predictions = predictions[..., 1:5]
+    box_predictions = predictions[..., 1:5].to(config.DEVICE)
     if is_preds:
         anchors = anchors.reshape(1, len(anchors), 1, 1, 2)
         box_predictions[..., 0:2] = torch.sigmoid(box_predictions[..., 0:2])
