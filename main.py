@@ -188,18 +188,12 @@ if __name__ == '__main__':
     # Train the model
     checkpoint_path = config.CHECKPOINT_PATH + '/epoch=28-step=15022.ckpt'
     # Load the checkpoint
-    checkpoint = pl.load_checkpoint(checkpoint_path)
 
     # Load the model state_dict from the checkpoint
-    yolo_v3 = YoloV3(num_classes=20)
-    yolo_v3.load_state_dict(checkpoint['state_dict'])
+    yolo_v3 = YoloV3.load_from_checkpoint(checkpoint_path, 
+        map_location=config.DEVICE)
 
     # Instantiate a Trainer and continue training
-    trainer = pl.Trainer(
-        resume_from_checkpoint=checkpoint_path,
-        max_epochs=40)
-    trainer.fit(yolo_v3)
-    # yolo_v3 = YoloV3.load_from_checkpoint(ckpt_fname, 
-    #     map_location=config.DEVICE)
+    trainer.fit(yolo_v3, data_module, ckpt_path=checkpoint_path,)
     # trainer.fit(yolo_v3, data_module)
 
