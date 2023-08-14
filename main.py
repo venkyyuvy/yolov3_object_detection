@@ -186,7 +186,7 @@ if __name__ == '__main__':
     )
 
     # Train the model
-    checkpoint_path = config.CHECKPOINT_PATH + '/epoch=28-step=15022.ckpt'
+    checkpoint_path = config.CHECKPOINT_PATH + '/epoch=38-step=20202.ckpt'
     # Load the checkpoint
 
     # Load the model state_dict from the checkpoint

@@ -300,6 +300,7 @@ def get_evaluation_bboxes(
         for i in range(3):
             S = predictions[i].shape[2]
             anchor = torch.tensor([*anchors[i]]) * S
+            anchor = anchor.to(config.DEVICE)
             boxes_scale_i = cells_to_bboxes(
                 predictions[i], anchor, S=S, is_preds=True
             )

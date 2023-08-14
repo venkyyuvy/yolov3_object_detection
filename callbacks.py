@@ -52,7 +52,7 @@ class MAPCallback(pl.Callback):
     def __init__(self) -> None:
         super().__init__()
 
-    def on_train_epoch_end(
+    def on_train_epoch_start(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule
     ) -> None:
 
