@@ -292,6 +292,7 @@ def get_evaluation_bboxes(
     all_true_boxes = []
     for batch_idx, (x, labels) in enumerate(tqdm(loader)):
         x = x.to(config.DEVICE)
+        labels = labels.to(config.DEVICE)
         with torch.no_grad():
             predictions = model(x)
 
