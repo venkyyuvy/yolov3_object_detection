@@ -146,6 +146,7 @@ class YoloV3(YOLOv3, LightningModule):
             f"\nEPOCH: {self.current_epoch}, "
             +f"Loss: {self.trainer.callback_metrics['train_loss_epoch']}"
         )
+
 if __name__ == '__main__':
     trainer = Trainer(
         callbacks=[
