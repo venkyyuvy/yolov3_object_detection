@@ -74,6 +74,7 @@ class YoloV3(YOLOv3, LightningModule):
             )
 
             self.log_dict(accuracy)
+            print(accuracy)
 
         return loss
 
